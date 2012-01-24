@@ -1,0 +1,99 @@
+slitch hacking howto
+------------------------------------------------------------
+
+Here's a tour of the program, starting with an overview of each source
+file.
+
+tcpip.lisp:
+  Main logic, implementing the actual protocol stack.
+
+switch.lisp:
+  A very simple ethernet switch example program.
+
+netlib-structures.lisp:
+  Definitions of major datatypes, like protocol headers.
+
+netlib.lisp:
+  Network device abstraction with wrappers for TAP and PF_PACKET
+  backends. Code for reading and writing protocol headers.
+
+tuntap.lisp:
+  This implements the tunnel device interface to the operating
+  system. It has a simple interface to open and close tunnels, and
+  read and write frames on them.
+
+packet-socket.lisp:
+  Interface to Linux PF_PACKET sockets. They provide raw
+  ethernet-level I/O on existing network interfaces.
+
+binary-types.lisp:
+  Module for mapping binary frame formats that come off the network
+  to/from Lisp structures. It's a very nice encoding and decoding
+  framework. I found it on the internet, the real author is a
+  norwegian bloke called Frode Vatvedt Fjeld.
+
+binary-types-extra.lisp:
+  Extensions to the binary types package which have been needed for
+  TCP/IP packet formats.
+
+binary-rw-gen.lisp:
+  Alternative backend for binary-types, which is now used
+  throughout. This is a small set of macros for compiling a whole
+  binary type (and all its components) into a single read or write
+  function.
+
+netlib-package.lisp:
+  Defines the Lisp package for netlib, exported symbols, etc.
+
+root.lisp:
+  A small program that lets you do certain operations as root (if
+  correctly configured).
+
+netlib.system, netlib.asd:
+  Lisp-style makefiles. Take your pick.
+
+Any questions can be sent to Luke Gorrie <luke@bluetail.com>.
+
+------------------------------------------------------------
+Literature:
+
+You may be wondering where to get the details of all these protocols
+to implement them. The definitive references are the RFCs which you
+can get off the 'net. Some relevant ones are:
+
+  0826 Ethernet Address Resolution Protocol: Or converting network
+       protocol addresses to 48.bit Ethernet address for transmission on
+       Ethernet hardware. D.C. Plummer. Nov-01-1982. (Format: TXT=22026
+       bytes) (Also STD0037) (Status: STANDARD)
+
+  0791 Internet Protocol. J. Postel. Sep-01-1981. (Format: TXT=97779
+       bytes) (Obsoletes RFC0760) (Also STD0005) (Status: STANDARD)
+
+  0768 User Datagram Protocol. J. Postel. Aug-28-1980. (Format: TXT=5896
+       bytes) (Also STD0006) (Status: STANDARD)
+
+  0793 Transmission Control Protocol. J. Postel. Sep-01-1981. (Format:
+       TXT=172710 bytes) (Updated by RFC3168) (Also STD0007) (Status:
+       STANDARD)
+
+Note: The specification of UDP is 3 pages long. They sure knew how to
+write protocols and specs back then. :-)
+
+As a supplement, I can very happily recommend the first two volumes of
+Douglas Comer's "Internetworking with TCP/IP" series. Richard Stevens'
+books (TCP/IP Illustrated series) cover much the same topics and would
+also be just fine.
+
+The first volume describes how all the internet protocols work in a
+very easy to follow way. As well as the basics - ARP/IP/ICMP/UDP/TCP -
+it also covers routing and multicast protocols, BOOTP and DHCP, and
+higher-level protocols like FTP, TELNET, NFS, etc.
+
+The second volume is a case study of a particular (nice)
+implementation of the TCP/IP protocol suite. The book is full of
+source code, which is written in C and based on a novel operating
+system.
+
+If you are (or want to be) familiar with a free operating system like
+Linux or FreeBSD, they should make excellent references as well.
+

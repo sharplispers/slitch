@@ -1,0 +1,23 @@
+(defconstant +slitch-source-directory+ "/home/luke/hacking/slitch/slitch/src"
+  "Directory where the sources are - customize to suit your installation.
+It would be more sophisticated to use Common Lisp path translation
+stuff, but I don't know how yet.")
+
+(mk:defsystem switch
+    :source-pathname +slitch-source-directory+
+    :source-extension "lisp"
+    :components
+    ((:file "tuntap")
+     (:file "window")
+     (:file "binary-types")
+     (:file "binary-types-extra"
+            :depends-on ("binary-types"))
+     (:file "switch-package"
+            :depends-on ("tuntap" "binary-types-extra" "window"))
+     (:file "switch-types"
+            :depends-on ("binary-types-extra" "switch-package"))
+     (:file "switch"
+            :depends-on ("switch-types" "window"))))
+
+;(mk:operate-on-system :switch :compile)
+;(mk:operate-on-system :switch :load)

@@ -1,0 +1,29 @@
+(defconstant netlib-source-directory "/home/luke/hacking/slitch/slitch/src")
+
+(mk:defsystem netlib
+    :source-pathname netlib-source-directory
+    :source-extension "lisp"
+    :components
+    ((:file "root")
+     (:file "tuntap")
+     (:file "packet-socket")
+     (:file "binary-types")
+     (:file "binary-types-extra"
+            :depends-on ("binary-types"))
+     (:file "binary-rw-gen"
+            :depends-on ("binary-types-extra"))
+     (:file "netlib-package"
+            :depends-on ("tuntap" "packet-socket" "root" "binary-rw-gen"))
+     (:file "netlib"
+            :depends-on ("netlib-package"
+                         "netlib-constants"
+                         "netlib-structures"))
+     (:file "netlib-structures"
+            :depends-on ("netlib-package"))
+     (:file "netlib-constants"
+            :depends-on ("netlib-package" "netlib-structures"))
+     (:file "window"
+            :depends-on ("netlib"))
+     (:file "tcpip"
+            :depends-on ("netlib" "window"))))
+

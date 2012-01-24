@@ -1,0 +1,505 @@
+\input texinfo   @c -*-texinfo-*-
+@c %**start of header
+@setfilename netlib.info
+@settitle Netlib
+@c %**end of header
+
+@set EDITION Draft
+@set UPDATED August 2003
+
+@titlepage
+@title Netlib: Common Lisp on Ethernet
+@subtitle @value{EDITION}, updated @value{UPDATED}
+@author Luke Gorrie
+@end titlepage
+
+@contents
+
+@node Introduction
+@comment  node-name,  next,  previous,  up
+@chapter Introduction
+
+Netlib is a library for low-level networking.
+
+@node Network Devices
+@comment  node-name,  next,  previous,  up
+@chapter Network Devices
+
+Network access is provided by a @code{device}. Devices in Netlib play
+a role similar to physical network cards in an operating system: they
+are a means of exchanging ethernet frames with other hosts. And, as in
+an operating system, there are different types of device, and support
+for each is implemented with a ``device driver'' (see below). However,
+all devices support a common interface.
+
+@defun transmit device frame
+Transmit an ethernet @var{frame} on a @var{device}.
+@end defun
+
+@defun enable-device device receive-fn
+Enable traffic processing on the @var{device}. The function
+@var{receive-fn} is called each time a frame is received from another
+host, with the frame as its only argument.
+@end defun
+
+@defun disable-device device
+Disable traffic processing on the @var{device}. The device will not
+accept any frames from other hosts while it is disabled. A disabled
+device can be re-enabled with @code{enable-device}.
+@end defun
+
+@defun destroy-device device
+Shutdown the @var{device} permanently. This frees any special
+resources associated with the device. The device cannot be used once
+destroyed.
+@end defun
+
+@node Tap Devices
+@comment  node-name,  next,  previous,  up
+@section TAP Devices
+
+``TAP'' devices use the Linux ``Universal TUN/TAP'' driver to create
+virtual ethernet connections between Lisp and the host operating
+system. Each TAP device created by a Lisp program is seen by the
+host as a new network interface. These interfaces can be manipulated
+with standard tools like @code{ifconfig} and @code{tcpdump} as if they
+were actual network cards. Anything the host sends into the TAP
+interface is received by the Lisp process's device, and vice versa.
+
+@defun make-tap-device interface-name
+Create a TAP device. The device appears on the host operating system
+as a new network interface called @var{inteface-name}. Each frame that
+Lisp transmits to the device is received by the host operating
+system's network interface.
+@end defun
+
+The use of TAP devices requires the Linux @code{tun} driver to be
+correctly setup. For setup details, see
+@file{Documentation/networking/tuntap.txt} in the Linux source
+tree.
+
+Note that you don't necessarily need root access to create a tap
+device. You only need read/write permission on @file{/dev/net/tun}.
+
+@node Packet Socket Devices
+@comment  node-name,  next,  previous,  up
+@section Packet-Socket Devices
+
+@defun make-packet-socket-device interface-name
+Create a packet socket device.
+@end defun
+
+@node Basic Datatypes
+@comment  node-name,  next,  previous,  up
+@chapter Basic Datatypes
+
+@node IP Addresses
+@comment  node-name,  next,  previous,  up
+@section IP Addresses
+
+@deftp {Data Type} ip-addr
+The abstract type of IP addresses. The reader syntax
+@code{@@192.168.0.1} is used to denote IP addresses.
+@end deftp
+
+@defun ip-addr-to-string ip-address
+Return the ``dotted quad'' string representing @var{ip-address}. For
+example:
+@example
+(ip-addr-to-string @@192.168.0.1) @result{} "192.168.0.1"
+@end example
+@end defun
+
+@defun ip-addr-to-int ip-address
+Return the 32-bit big-endian integer value of @var{ip-address}.
+@end defun
+
+@defun int-to-ip-addr number
+Return the @code{ip-addr} represented by @var{number}. This is the
+inverse of @code{ip-addr-to-int}.
+@end defun
+
+@defun prefix-bits-to-netmask nbits
+Return an @code{ip-addr} representing an @var{nbits}-bit network mask.
+For example:
+@example
+(prefix-bits-to-netmask 24) @result{} @@255.255.255.0
+@end example
+@end defun
+
+@defun netmask-to-prefix-bits netmask
+Return the number of prefix bits in @var{netmask} (an
+@code{ip-addr}). This is the inverse of
+@code{prefix-bits-to-netmask}. For example:
+@example
+(netmask-to-prefix-bits @@255.255.255.0) @result{} 24
+@end example
+The result is undefined if @var{netmask} is not well-formed.
+@end defun
+
+@defun mask-ip address netmask
+Return the result of masking @var{address} by @var{netmask}. For
+example:
+@example
+(mask-ip @@192.168.0.43 @@255.255.255.0) @result{} @@192.168.0.0
+@end example
+@end defun
+
+@defun broadcast-address network-address netmask
+Calculate the standard broadcast address for a @var{network-address}
+and its @var{netmask}. The standard broadcast address is the highest
+address in the subnet. For example:
+@example
+(broadcast-address @@10.0.0.0 @@255.255.0.0) @result{} @@10.0.255.255
+@end example
+@end defun
+
+@node Ethernet MAC Addresses
+@comment  node-name,  next,  previous,  up
+@section Ethernet MAC Addresses
+
+@deftp {Data Type} mac-addr
+The abstract type of an Ethernet MAC (Medium Access Control)
+address. This represents the 48-bit ``hardware address'' of an
+ethernet interface. The reader syntax @code{#e"00:08:74:E4:6E:BC"} is
+used to denote MAC addresses.
+@end deftp
+
+@defvr {Constant} broadcast-mac
+The ethernet broadcast address: @code{#e"FF:FF:FF:FF:FF:FF"}
+@end defvr
+
+@defun mac-addr-to-string address
+Return the string representing @var{address}. For example:
+@example
+(mac-addr-to-string #e"00:08:74:E4:6E:BC") @result{} "00:08:74:E4:6E:BC"
+@end example
+@end defun
+
+@defun random-mac-addr
+Returns a MAC address with the first two bytes set to @code{0x00FF}
+and the rest random. This is a ``hopefully unique'' MAC address.
+For example:
+@example
+(random-mac-addr) @result{} #e"00:FF:8C:85:8D:D1"
+@end example
+@end defun
+
+@defun ethernet-multicast-p address
+Returns true if @var{address} is an ethernet multicast address.
+@end defun
+
+@node Packet Structures
+@comment  node-name,  next,  previous,  up
+@chapter Packet Structures
+
+@node Ethernet Header
+@comment  node-name,  next,  previous,  up
+@section Ethernet Header
+
+@deftp Structure ethh
+@table @strong
+@item dest
+Destination address (@code{mac-addr}).
+@item src
+Source address (@code{mac-addr}).
+@item type
+@dfn{Ethertype} (@code{integer}) indicating the protocol of the
+enclosed packet. The following ethertypes are defined as constants:
+@code{ethtype-ip}, @code{ethtype-arp}, @code{ethtype-rarp}. The others
+can be found on the @sc{ieee} website.
+@end table
+@end deftp
+
+@node ARP header
+@comment  node-name,  next,  previous,  up
+@section ARP header
+
+@deftp Structure arph
+@table @strong
+@item hardware-type
+Always 1 for ethernet.
+@item protocol-type
+Always the constant @code{ethtype-ip} for IP.
+@item hardware-length
+Hardware address length in bytes. Always 6 for ethernet.
+@item protocol-length
+Higher-level protocol address length. Always 4 for IP.
+@item operation
+Either of the constants @code{arp-operation-request} or
+@code{arp-operation-response}.
+@item sender-ha
+The sender's hardware address (@code{mac-addr}).
+@item sender-ip
+The sender's IP address (@code{ip-addr}).
+@item target-ha
+The target's hardware address (@code{mac-addr}). In an ARP request
+this is typically @code{broadcast-mac}.
+@item target-ip
+The target's IP address (@code{ip-addr}).
+@end table
+@end deftp
+
+@node IPv4 header
+@comment  node-name,  next,  previous,  up@deftp Structure iph
+@section IPv4 Header
+
+@deftp Structure iph
+@table @strong
+@item version
+IP protocol version number (@code{integer}). Always 4 for IPv4.
+@item hlen
+Length of IP header (@code{integer}).
+@item tos
+Type of Service (@code{integer}).
+@item total-len
+Total length of IP packet (@code{integer}).
+@item id
+Fragmentation ID (@code{integer}).
+@item flags
+@code{integer} -- no constants are presently defined.
+@item fragment-offset
+Fragmentation offset (@code{integer}).
+@item ttl
+Time-to-live (@code{integer}).
+@item protocol
+Protocol of the payload (@code{integer}). Defined constants:
+@code{ip-protocol-icmp}, @code{ip-protocol-tcp},
+@code{ip-protocol-udp}.
+@item checksum
+@code{integer}.
+@item source
+Source address (@code{ip-addr}).
+@item dest
+Destination address (@code{ip-addr}).
+@item options
+Extra options in a partially-decoded association list. The keys are
+@code{:security}, @code{:loose-source-routing},
+@code{:strict-source-routing}, @code{:record-route},
+@code{:stream-id}, and @code{:timestamp}. The values are uninterpreted
+(vector of bytes).
+@end table
+@end deftp
+
+@node ICMP Header
+@comment  node-name,  next,  previous,  up
+@section ICMP Header
+
+@deftp Structure icmph
+@table @strong
+@item type
+The type of message. Defined constants: @code{icmp-type-echo-request},
+@code{icmp-type-echo-reply}, @code{icmp-type-port-unreachable}.
+@item code
+@code{integer}
+@item checksum
+@item data
+The payload (@code{packet-data}).
+@end table
+@end deftp
+
+@node UDP Header
+@comment  node-name,  next,  previous,  up
+@section UDP Header
+
+@deftp Structure udph
+@table @strong
+@item src-ip
+@itemx dest-ip
+The source and destination addresses of the packet
+(@code{ip-addr}). These are not actually part of the UDP header on
+the wire, but can be taken from the IP header.
+@item src-port
+@itemx dest-port
+Source and destination ports (@code{integer}).
+@item length
+Length of payload (@code{integer}).
+@item checksum
+Data checksum, or 0 to mean ``no checksum''.
+@item data
+The payload (@code{packet-data}).
+@end table
+@end deftp
+
+@node TCP Header
+@comment  node-name,  next,  previous,  up
+@section TCP Header
+@deftp Structure tcph
+@table @strong
+@item src-ip
+@itemx dest-ip
+The source and destination addresses of the packet
+(@code{ip-addr}). As with UDP, these are not actually part of the TCP
+header on the wire, but can be taken from the IP header.
+@item src-port
+@itemx dest-port
+Source and destination ports (@code{integer}).
+@item seq
+Sequence number (@code{integer}).
+@item ack-seq
+Acknowledged sequence number (@code{integer}).
+@item data-offset
+Offset at which the payload begins, counted in 32-bit words
+(@code{integer}).
+@item reserved
+@item  urg?
+@itemx ack?
+@itemx psh?
+@itemx rst?
+@itemx syn?
+@itemx fin?
+Flags, set to @code{T} or @code{NIL}.
+@item window
+Advertised window space.
+@item urgent-ptr
+Pointer to urgent data.
+@item options
+Extra options, in an association list.
+@item data
+The payload (@code{packet-data}).
+@end table
+@end deftp
+
+@node Examples
+@comment  node-name,  next,  previous,  up
+@chapter Examples
+
+@node Network Device Basics
+@comment  node-name,  next,  previous,  up
+@section Network Device Basics
+
+Here is one way to create a TAP device and print a message each time a
+frame is received from it:
+
+@example
+* (setq lisp-dev (make-tap-device "lisp"))
+Warning:  Declaring LISP-DEV special.
+
+#<TAPDEV "lisp" (FD: 8) @{486A8555@}>
+* (enable-device lisp-dev (lambda (frame)
+                            (format t "~&Got ~S packet frame.~%"
+                                      (length frame))))
+T
+* 
+@end example
+
+@noindent
+This TAP device is also visible as a network interface on the host
+system. It can be configured with an IP address and used for
+communication:
+
+@example
+# ifconfig lisp
+lisp      Link encap:Ethernet  HWaddr 00:FF:54:E9:E7:B3  
+          BROADCAST MULTICAST  MTU:1500  Metric:1
+          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:100 
+          RX bytes:0 (0.0 b)  TX bytes:0 (0.0 b)
+# ifconfig lisp 192.168.0.1 up
+# ping 192.168.0.2
+PING 192.168.0.2 (192.168.0.2): 56 data bytes
+@end example
+
+Of course, no ping replies ever come back -- Lisp isn't sending
+any. It's just printing messages like this:
+
+@example
+Got 42 packet frame.
+Got 42 packet frame.
+Got 42 packet frame.
+Got 42 packet frame.
+...
+@end example
+
+@noindent
+(In fact, the host doesn't even send ping requests. Those 42-byte
+packets are just preliminary ARP requests (@xref{ARP}).)
+
+Things are a little different with a packet-socket device. Because it
+is attached to an existing interface, we immedately start receiving
+frames -- we are ``snooping'' on an existing network:
+
+@example
+* (setq snoop-dev (make-packet-socket-device "eth0"))
+Warning:  Declaring SNOOP-DEV special.
+
+#<PSOCKET-DEVICE "eth0" (FD:4 ID:2) @{487921A5@}>
+* (enable-device snoop-dev (lambda (frame) (format t "~&Got ~S packet frame.~%" (length frame))))
+T
+* 
+Got 98 packet frame.
+Got 70 packet frame.
+Got 60 packet frame.
+Got 554 packet frame.
+Got 154 packet frame.
+...
+@end example
+
+@node Switch
+@comment  node-name,  next,  previous,  up
+@section An Ethernet Switch
+
+@lisp
+(defpackage :switch
+  (:use :common-lisp)
+  (:export :start))
+
+(in-package :switch)
+
+(defvar *devices* nil
+  "List of devices to switch between.")
+
+(defvar *fdb* (make-hash-table :test #'equalp)
+  "Forwarding database: maps MAC addresses onto network devices.")
+
+(defun start (&rest devices)
+  "Start switching packets between DEVICES."
+  (setq *devices* devices)
+  (mapc #'init-device *devices*))
+
+(defun init-device (device)
+  "Initialize DEVICE to pass frames up for switching."
+  (netlib:device-enable device
+                        ;; This function is called when a frame arrives.
+                        ;; FRAME is an ethernet frame as an array of bytes.
+                        (lambda (frame) (input frame device))))
+
+(defun input (frame input-device)
+  "Process a FRAME arriving on INPUT-DEVICE."
+  (multiple-value-bind (source destination) (header-addresses frame)
+    (update-fdb source input-device)
+    (let ((output-device (where-is destination)))
+      (cond ((null output-device)
+             (flood frame input-device))
+            ((not (eq output-device input-device))
+             (send frame output-device))))))
+
+(defun header-addresses (frame)
+  "Return the source and destination addresses from FRAME's ethernet header."
+  (netlib:with-input-from-frame (stream frame)
+    (let ((header (netlib:read-ethh stream)))
+      (values (netlib:ethh-src header) (netlib:ethh-dest header)))))
+
+(defun update-fdb (address device)
+  "Update the forwarding database: ADDRESS is on DEVICE."
+  (unless (netlib:ethernet-multicast-p address)
+    (setf (gethash address *fdb*) device)))
+
+(defun where-is (address)
+  "Return the device that ADDRESS is on, or NIL if unknown."
+  (gethash address *fdb*))
+
+(defun send (frame output-device)
+  "Send FRAME to OUTPUT-DEVICE."
+  (netlib:transmit output-device frame))
+
+(defun flood (frame input-device)
+  "Send FRAME to all devices except INPUT-DEVICE."
+  (dolist (output-device *devices*)
+    (unless (eq output-device input-device)
+      (send frame output-device))))
+@end lisp
+
+@bye
+

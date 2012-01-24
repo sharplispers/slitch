@@ -1,0 +1,214 @@
+2003-08-03  Luke Gorrie  <luke@bluetail.com>
+
+	* doc/netlib.texi: The beginnings of a manual.
+
+	* src/netlib.lisp: Renamed device-related functions with better
+	names (e.g. NETDEV-TX becomes TRANSMIT). Added print-functions for
+	tap and packet-socket devices.
+
+2003-08-02  Luke Gorrie  <luke@bluetail.com>
+
+	* README: Brough vaguely up to date after the restructuring.
+
+	* src/switch.lisp: New example program: an ethernet switch.
+
+	* src/packet-socket.lisp (bind): Fixed a bug where I was using
+	totally the wrong system call to bind to an interface.
+
+	* src/netlib.lisp (with-input-from-frame): New macro: wrapper to
+	binary-types:with-binary-input-from-vector.
+
+	* src/netlib-structures.lisp (ethernet-multicast-p): New function.
+
+	* src/binary-types-extra.lisp (binary-vector-input-state): Added
+	this function for getting the internal state of the stream.
+
+	* src/binary-rw-gen.lisp: Stupid optimization: the writer now uses
+	simple-arrays instead of adjustable vectors.
+
+2003-08-01  Luke Gorrie  <luke@bluetail.com>
+
+	* src/netlib.lisp: Updated to use new binary-types backend. Added
+	packet-socket flavour of network device.
+
+	* src/netlib-packet.lisp: Gone! merged into netlib.lisp.
+
+	* src/binary-rw-gen.lisp: A new backend for binary-types, which
+	can generate a single function to read or write a binary
+	type. This is an optimization. Not all sorts of binary type are
+	supported (at least signed integers and little-endian are not.)
+	Appears to be ~3x faster in a microbenchmark.
+
+	* src/packet-socket.lisp: Added interface to packet-level sockets
+	as an alternative to tap devices. As far as I can tell you can't
+	talk to the host OS with these - the packets go straight out onto
+	the physical network without the local machine considering
+	them. (So it seems.)
+
+2003-07-14  Luke Gorrie  <luke@bluetail.com>
+
+	* RESTRUCTURING: Major changes. The dust hasn't quite settled yet.
+
+	I split the program into two packages: NETLIB and TCPIP. NETLIB is
+	a stand-alone package that contains the TAP-interface, the
+	binary-types code for reading/writing protocol headers, and the
+	IP/MAC address code. TCPIP then has the TCP/IP stack logic, and is
+	built on top of NETLIB.
+
+	The main files (switch.lisp and switch-types.lisp) have now been
+	split into tcpip.lisp and netlib*.lisp.
+	
+	There are two main motiviations for all this: simplicity and
+	extensibility. This is a good and clean place to break the code in
+	half, which should make it easier to understand. Also, the fact
+	that NETLIB is stand-alone and contains no protocol logic paves
+	the way for writing more low-level networking applications --
+	e.g. an ethernet switch, a firewall, and other things that don't
+	require a full traditional TCP/IP stack. (I've been using Slitch
+	to perform DoS attacks in our test lab at work, hence the
+	motivation to make it more customisable.)
+
+	There's still a little way to go before the code gets back to
+	ExtremeNormalForm, and some things are probably broken right
+	now. I've only tested ICMP and ARP (i.e. ping), and they both
+	work.
+
+	If you want to use Slitch before the dust has settled, you can
+	checkout from the 'DESIGN1' tag in CVS, which has the old code.
+	
+	* src/switch.lisp (ip-output): Moved the device-specific callback
+	functions from the INTERFACE structure into their own NETDEV
+	structure. The NETDEV is given a function to call with packets it
+	receives, and is responsible for its own I/O (talks to
+	SERVE-EVENT.) Everything else (IP address, netmask, ...) is in the
+	INTERFACE.
+
+2003-06-24  Luke Gorrie  <luke@bluetail.com>
+
+	* src/switch.lisp: Started reading Norvig & Pitman's "Good Lisp
+	Style" tutorial. Therefore, started rewriting ugly functions, and
+	started doing some things properly (e.g. print-unreadable-object.)
+
+2003-06-22  Luke Gorrie  <luke@bluetail.com>
+
+	* src/switch.lisp (&co): Using vectors instead of strings for
+	buffers now. This removes a lot of boring/ugly conversions with
+	code-char, char-code, etc. Previously I didn't realise that
+	(vector (unsigned-byte 8)) could be passed as a string to
+	unix-write and so on.
+
+	* src/tuntap.lisp (create-tunnel): Can now specify the name for
+	the tap interface -- this name is how it will appear on the host
+	machine (instead of tap0 etc.)
+
+	* README,HACKING,STATUS: Updated.
+
+	* src/switch.lisp (udp-input): Added UDP support, with a basic
+	programming interface. You can register a function to receive UDP
+	packets on a particular port.
+
+	* src/switch-types.lisp (read-ip-address): New syntactic sugar for
+	IP-ADDR structures: @192.168.128.43
+	(read-mac-address): New syntax for MAC-ADDR structures too:
+	#e"F1:F2:F3:F4:F5:F6" (e for ethernet)
+
+2003-06-15  Luke Gorrie  <luke@bluetail.com>
+
+	* src/switch.lisp (route): Added an IP routing table.
+	Now talking to other machines on the network!
+	(routes): Added (ROUTES) function, a clone of unix 'route', which
+	prints the routing table.
+
+	* src/tuntap.lisp (tunnel-read): Using ADJUST-ARRAY so that the
+	buffer-string returned is only as long as the data actually read.
+	(init-tunnel): Giving IFF_ONE_QUEUE flag to tap ioctl. This means
+	we can set the write queue using 'ifconfig', and shortening it
+	seems to cut down latency under overload conditions (ping flood.)
+
+	* src/switch.lisp (netstat): Added a NETSTAT function, which
+	prints information similar to the unix command.
+
+	* src/switch-types.lisp: Changed IP/MAC address reader syntax from
+	#<...> to #{...} to fit better with Lisp, which wants #<...> to be
+	unreadable.
+	Added a bunch of functions for manipulating IP and MAC addresses.
+
+2003-06-14  Luke Gorrie  <luke@bluetail.com>
+
+	* src/switch.lisp: Added Emacs `folding-mode' annotations. Not
+	sure how good it is yet..
+	(interface): Added the concept of a network interface, where
+	previously we implicitly used a single tap interface.
+	(ip-for-me?): Now responding to IP broadcasts.
+
+2003-05-05  Luke Gorrie  <luke@bluetail.com>
+
+	* src/switch.lisp: Indentation cleanups, slight refactoring.
+
+	* src/binary-types.lisp (define-binary-struct): CLOS fixes for
+	modern CMUCL (also to binary-types-extra.lisp). Patch courtesy of
+	Eric Marsden.
+
+2003-01-19  Luke Gorrie  <luke@bluetail.com>
+
+	* src/switch.lisp (tcp-connect): Now able to initiate connections
+	from Lisp. Added SYN-SENT state.
+
+2003-01-18  Luke Gorrie  <luke@bluetail.com>
+
+	* src/switch.lisp (tcp-read-sockets): Basic support for reading
+	from all sockets that have data available. Even sends ACKs when
+	zero-windows are opened up.
+
+	* src/window.lisp: Abstract datatype for TCP sliding windows,
+	moved from switch.lisp.
+
+2003-01-13  Luke Gorrie  <luke@bluetail.com>
+
+	* src/switch.lisp: Added a little more of the TCP state machine -
+	enough to accept and shut down connections, and correctly ACK
+	incoming data. Uses a possibly prematurely-abstracted 'window'
+	data structure for receiving data into.
+
+2002-11-02  Luke Gorrie  <luke@bluetail.com>
+
+	* src/switch.lisp: Implemented the minimal "Hello world" in TCP!
+	When SYNs arrive, they are sent a SYN+ACK and then a data packet
+	with a hello message.
+
+2002-11-01  Luke Gorrie  <luke@bluetail.com>
+
+	* src/binary-types-extra.lisp (binary-bitflag): Added
+	`binary-bitflag' binary type, which is one bit mapped onto
+	0=NIL/1=T. It's used for TCP header flags like SYN etc.
+
+2002-10-03  Luke Gorrie  <luke@bluetail.com>
+
+	* src/switch.lisp, src/switch-types.lisp: The beginnings of TCP..
+
+2002-10-01  Luke Gorrie  <luke@bluetail.com>
+
+	* src/switch.lisp: Ping works!
+
+2002-09-30  Luke Gorrie  <luke@bluetail.com>
+
+	* src/binary-types-extra.lisp: Added support for records with
+	not-byte-aligned entries (like bitfields in C structs). This is
+	for IP (and later others).
+
+	* src/switch.lisp: Added basic IP support (lacking routing and
+	fragmentation), with stubs for ICMP, UDP, and TCP.
+	
+	Added an ARP cache, but sofar only populating it from requests
+	that come to us, never sending our own.
+
+	Haven't tested the ARP cache or sending IP packets yet. Next goal
+	is now to reply to "pings".
+	
+2002-09-28  Luke Gorrie  <luke@bluetail.com>
+
+	* src/switch.lisp: Documentation improvement.
+
+	* README: Updated and procedure tested.
+	
+

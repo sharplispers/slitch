@@ -1,0 +1,154 @@
+slitch -- experimental low-level networking in Common Lisp
+============================================================
+
+This package implements some low-level networking, based on reading
+and writing ethernet frames via the operating system. Currently it
+supports some subset of ARP, IP, ICMP, UDP, and TCP.
+
+The current implementation uses CMUCL's FFI (Alien) to access Linux
+'tap' devices, which are like virtual ethernet cards implemented in
+software. The operating system views the tap device just like a
+network card. When it writes to the tunnel, the packets arrive in the
+lisp program, and when the lisp program writes packets to the tunnel,
+the operating systems receives them as if they came from a real
+network card.
+
+We configure the host machine to route packets for a virtual network
+address into the tunnel, so that normal programs (ping etc) can talk
+to the lisp program.
+
+Prerequisites
+============================================================
+
+* CMU Common Lisp (I use 18e on Debian)
+
+  You also need the "mk-defsystem" package (a Lisp version of "make"),
+  which is already included with some copies (e.g. Debian's), or can
+  be found in CLOCC.
+
+* Linux, with support for tunnel devices via the "tun" module. If you
+  have this available, you should be able to successfully run "insmod
+  tun" as root to load it. You can also check if the file /dev/net/tun
+  exists.
+
+  If you don't have tuntap, it's easy to compile and install as a
+  kernel module. See
+  /usr/src/linux/Documentation/networking/tuntap.txt for details.
+
+  Note: To avoid running Slitch as root, you should 'chmod'
+  /dev/net/tun to be read-write by other users.
+
+Setup and Compilation
+============================================================
+
+We do all of this in the src/ directory.
+
+Step 1: Edit "netlib.system" so that +slitch-source-directory+ points to
+        the right path for your machine.
+
+Step 2: Optionally edit tcpip.lisp to change the IP address that the
+        program will use. By default it uses 192.168.43.10 - this
+        should be fine unless it collides with something on your
+        network.
+
+Step 3: Compilation. First start a lisp, probably by typing "lisp" in
+        the shell. Now we load the "make file":
+
+	  (load "netlib.system")
+
+	(If you get an error, it's probably because you don't have the
+        mk-defsystem package installed properly.)
+	Now compile with:
+
+	  (mk:operate-on-system :netlib :compile)
+
+Starting the program
+============================================================
+
+Note on instructions: The Lisp must run as a user that has read-write
+access to /dev/net/tun, and the shell commands must be run as root.
+
+Step 1: Start lisp.
+
+Step 2: Load the system in the lisp:
+
+          (load "netlib.system")
+	  (mk:operate-on-system :netlib :load)
+
+Step 3: Start Lisp program:
+
+          (tcpip:start)
+
+        It will now run in the background, handling packets as they
+        arrive.
+
+Step 4: Setup the operating system interface to the tunnel.
+
+        The 'tap' device created by (tcpip:start) is named
+        "lisp0", so your host machine should now have a network
+        interface by that name. If you write 'ifconfig -a', the output
+        should include a section like this:
+
+	  lisp0     Link encap:Ethernet  HWaddr 00:FF:30:C7:2C:A0  
+		    BROADCAST MULTICAST  MTU:1500  Metric:1
+		    RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+		    TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+		    collisions:0 txqueuelen:100 
+		    RX bytes:0 (0.0 b)  TX bytes:0 (0.0 b)
+
+        This is the virtual network interface connected to the Lisp
+        process. To communicate with Lisp, we only need to configure
+        an IP address for 'lisp0' in the same subnet that the Lisp
+        process is using (192.168.43.0/24 by default):
+
+	  # ifconfig lisp0 192.168.128.1 up
+
+Using it!
+============================================================
+
+If you successfully followed the previous steps, you now have a
+virtual network with two machines: your Linux host (192.168.43.1) and
+your Lisp process (192.168.43.10). The simplest way to check that this
+is working is to ping the Lisp process:
+
+  $ ping 192.168.43.10
+  PING 192.168.43.10 (192.168.43.10): 56 data bytes
+  64 bytes from 192.168.43.10: icmp_seq=0 ttl=64 time=0.8 ms
+  64 bytes from 192.168.43.10: icmp_seq=1 ttl=64 time=0.8 ms
+  64 bytes from 192.168.43.10: icmp_seq=2 ttl=64 time=0.8 ms
+
+(NB: To avoid typing the IP address all the time, you can add an entry
+for the Lisp address to your /etc/hosts file.)
+
+You can also make low-level observations of any packets being
+exchanged using the tcpdump program:
+
+  # tcpdump -n -i lisp0
+  tcpdump: listening on lisp0
+  13:05:59.800584 arp who-has 192.168.43.10 tell 192.168.43.1
+  13:05:59.801197 arp reply 192.168.43.10 is-at 0:ff:d7:c2:4e:4
+  13:05:59.801209 192.168.43.1 > 192.168.43.10: icmp: echo request (DF)
+  13:05:59.802277 192.168.43.10 > 192.168.43.1: icmp: echo reply
+
+From inside Lisp, there are also some Unixish utility functions you
+can use:
+
+  * (netstat)
+  lisp0  UP    Type:TAP  HWaddr 00:FF:D7:C2:4E:04
+	 Inet addr:192.168.43.10/255.255.255.0  Bcast:192.168.43.255
+	 RX bytes:6708 (6.7KiB)  TX bytes:126 (126 b)>
+  * (routes)
+  Destination      Gateway          Netmask          Interface
+  192.168.43.0     0.0.0.0          255.255.255.0    lisp0
+  0.0.0.0          192.168.43.1     0.0.0.0          lisp0
+
+Note that Lisp's routing table has 192.168.43.1 as the default
+gateway. If you configure this address on your host machine's lisp0
+interface (as in the example) and enable ip-forwarding, then your host
+machine can act as a router between the Lisp process and the internet.
+
+That's as far as this introduction goes. The rest is in the code!
+
+--
+Luke Gorrie <luke@bluetail.com>
+

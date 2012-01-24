@@ -1,0 +1,23 @@
+A few words on the status of protocol support..
+
+*** ARP
+Limited: we never make ARP requests, and only populate our ARP cache
+from requests we receive.
+
+** IPv4
+Handles multiple interfaces.
+Does routing.
+Lacks fragmentation, and much else.
+
+** ICMP
+Limited: just responds to pings.
+
+** UDP
+Has a basic programming interface to register packet-handling functions.
+Does not send ICMP port-unreachable replies.
+
+*** TCP
+Basic state machine, data acknowledgement, and reading.
+No proper programming interface.
+No timers or loss-handling logic.
+
